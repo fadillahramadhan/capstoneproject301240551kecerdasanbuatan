@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stasiun Pilah Sampah — Klasifikasi Otomatis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F1F0EA;
+    --panel: #FFFFFF;
+    --ink: #1C1E1B;
+    --ink-soft: #5B5D57;
+    --line: #D7D5CB;
+
+    --organik-bg: #E9F0DE;
+    --organik-mid: #7FA35C;
+    --organik-dark: #2E4A1F;
+
+    --anorganik-bg: #E5ECF3;
+    --anorganik-mid: #6C90B0;
+    --anorganik-dark: #1F3A52;
+
+    --b3-bg: #FBEADC;
+    --b3-mid: #D9791F;
+    --b3-dark: #6B3410;
+
+    --sans: 'Inter', sans-serif;
+    --display: 'Space Grotesk', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  .wrap{
+    max-width:980px;
+    margin:0 auto;
+    padding:40px 24px 80px;
+  }
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:32px;
+  }
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 8px;
+  }
+  h1{
+    font-family:var(--display);
+    font-weight:700;
+    font-size:32px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .stamp{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:right;
+    border:1px solid var(--line);
+    padding:8px 12px;
+    line-height:1.6;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+  }
+  @media (max-width:720px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    padding:20px;
+  }
+  .panel-label{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+  }
+
+  .drop-zone{
+    aspect-ratio:1/1;
+    border:2px dashed var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:10px;
+    cursor:pointer;
+    position:relative;
+    overflow:hidden;
+    text-align:center;
+    padding:20px;
+    background:var(--bg);
+  }
+  .drop-zone img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:none;
+  }
+  .drop-zone.has-image{ border-style:solid; }
+  .drop-zone.has-image img{ display:block; }
+  .drop-zone.has-image .placeholder{ display:none; }
+  .placeholder-icon{ width:34px; height:34px; color:var(--ink-soft); }
+  .placeholder p{ margin:0; font-size:13px; color:var(--ink-soft); }
+  .placeholder .hint{ font-family:var(--mono); font-size:11px; margin-top:4px; }
+  #fileInput{ display:none; }
+
+  .sweep{
+    position:absolute;
+    left:0; right:0; top:0;
+    height:3px;
+    background:var(--ink);
+    opacity:0.6;
+    display:none;
+  }
+  .scanning .sweep{
+    display:block;
+    animation:sweep 1.1s linear infinite;
+  }
+  @keyframes sweep{
+    0%{ top:0; }
+    100%{ top:100%; }
+  }
+
+  .status-line{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:0 0 16px;
+    min-height:16px;
+  }
+  .status-line.active{ color:var(--ink); }
+  .status-line.error{ color:var(--b3-dark); }
+
+  .gauge-row{
+    border:1px solid var(--line);
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .gauge-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 12px;
+    font-family:var(--display);
+    font-weight:700;
+    font-size:15px;
+  }
+  .gauge-head .pct{
+    font-family:var(--mono);
+    font-weight:400;
+    font-size:13px;
+  }
+  .gauge-row.organik .gauge-head{ background:var(--organik-bg); color:var(--organik-dark); }
+  .gauge-row.anorganik .gauge-head{ background:var(--anorganik-bg); color:var(--anorganik-dark); }
+  .gauge-row.b3 .gauge-head{ background:var(--b3-bg); color:var(--b3-dark); }
+
+  .gauge-track{
+    height:10px;
+    background:var(--bg);
+    position:relative;
+  }
+  .gauge-fill{
+    height:100%;
+    width:0%;
+    transition:width 0.7s ease;
+  }
+  .gauge-row.organik .gauge-fill{ background:var(--organik-mid); }
+  .gauge-row.anorganik .gauge-fill{ background:var(--anorganik-mid); }
+  .gauge-row.b3 .gauge-fill{
+    background-image:repeating-linear-gradient(
+      -45deg, var(--b3-mid) 0 8px, #F3C583 8px 16px
+    );
+  }
+
+  .verdict{
+    margin-top:18px;
+    padding:14px;
+    border:1px solid var(--line);
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.7;
+  }
+  .verdict strong{
+    font-family:var(--display);
+    color:var(--ink);
+  }
+  .model-tag{
+    margin-top:14px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Computer Vision &middot; Capstone Kecerdasan Buatan</p>
+      <h1>Stasiun Pilah Sampah</h1>
+    </div>
+    <div class="stamp">KLASIFIKASI<br>ORGANIK / ANORGANIK / B3</div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <p class="panel-label">01 &mdash; Unggah Foto Sampah</p>
+      <div class="drop-zone" id="dropZone">
+        <div class="sweep"></div>
+        <img id="preview" alt="preview sampah">
+        <div class="placeholder">
+          <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M4 7h16l-1.2 12.5A2 2 0 0 1 16.8 21H7.2a2 2 0 0 1-2-1.5L4 7z"/>
+            <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          <p>Klik atau seret foto sampah ke sini</p>
+          <p class="hint">JPG / PNG &middot; maks 8MB</p>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="image/png, image/jpeg">
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">02 &mdash; Hasil Klasifikasi</p>
+      <p class="status-line" id="statusLine">Menunggu foto&hellip;</p>
+      <div id="gauges">
+        <div class="gauge-row organik">
+          <div class="gauge-head"><span>Organik</span><span class="pct">&mdash;</span></div>
+          <div class="gauge-track"><div class="gauge-fill"></div></div>
+        </div>
+        <div class="gauge-row anorganik">
+          <div class="gauge-head"><span>Anorganik</span><span class="pct">&mdash;</span></div>
+          <div class="gauge-track"><div class="gauge-fill"></div></div>
+        </div>
+        <div class="gauge-row b3">
+          <div class="gauge-head"><span>B3</span><span class="pct">&mdash;</span></div>
+          <div class="gauge-track"><div class="gauge-fill"></div></div>
+        </div>
+      </div>
+      <div class="verdict" id="verdict">
+        Belum ada hasil. Unggah foto sampah di panel sebelah kiri &mdash;
+        sistem akan menilai kemungkinan kategori <strong>organik</strong>,
+        <strong>anorganik</strong>, dan <strong>B3</strong> sekaligus.
+      </div>
+      <p class="model-tag" id="modelTag"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const statusLine = document.getElementById('statusLine');
+const verdict = document.getElementById('verdict');
+const modelTag = document.getElementById('modelTag');
+
+const gaugeRows = {
+  organik: document.querySelector('.gauge-row.organik'),
+  anorganik: document.querySelector('.gauge-row.anorganik'),
+  b3: document.querySelector('.gauge-row.b3'),
+};
+
+dropZone.addEventListener('click', () => fileInput.click());
+['dragover', 'dragenter'].forEach(evt =>
+  dropZone.addEventListener(evt, e => e.preventDefault())
+);
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    preview.src = e.target.result;
+    dropZone.classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+  runPrediction(file);
+}
+
+async function runPrediction(file){
+  dropZone.classList.add('scanning');
+  statusLine.textContent = 'Menilai kategori sampah\u2026';
+  statusLine.className = 'status-line active';
+  modelTag.textContent = '';
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/predict', { method: 'POST', body: formData });
+    const data = await res.json();
+    dropZone.classList.remove('scanning');
+
+    if (!res.ok || data.error) {
+      statusLine.textContent = data.error || 'Terjadi kesalahan.';
+      statusLine.className = 'status-line error';
+      return;
+    }
+
+    statusLine.textContent = 'Klasifikasi selesai.';
+    statusLine.className = 'status-line active';
+    renderGauges(data.predictions);
+    modelTag.innerHTML = `Model aktif: ${data.model}`;
+  } catch (err) {
+    dropZone.classList.remove('scanning');
+    statusLine.textContent = 'Gagal terhubung ke server.';
+    statusLine.className = 'status-line error';
+  }
+}
+
+function normalizeKey(label){
+  const k = label.toLowerCase();
+  if (k.includes('organik') && !k.includes('an')) return 'organik';
+  if (k.includes('anorganik')) return 'anorganik';
+  if (k.includes('b3')) return 'b3';
+  return null;
+}
+
+function renderGauges(predictions){
+  Object.values(gaugeRows).forEach(row => {
+    row.querySelector('.pct').textContent = '\u2014';
+    row.querySelector('.gauge-fill').style.width = '0%';
+  });
+
+  let top = predictions[0];
+  predictions.forEach(p => {
+    const key = normalizeKey(p.label);
+    const row = key ? gaugeRows[key] : null;
+    const pct = (p.probability * 100).toFixed(1);
+    if (row) {
+      row.querySelector('.pct').textContent = pct + '%';
+      requestAnimationFrame(() => {
+        row.querySelector('.gauge-fill').style.width = pct + '%';
+      });
+    }
+    if (p.probability > top.probability) top = p;
+  });
+
+  const topKey = normalizeKey(top.label);
+  const niceName = { organik: 'organik', anorganik: 'anorganik', b3: 'B3' }[topKey] || top.label;
+  verdict.innerHTML = `Prediksi utama: <strong>${niceName}</strong> dengan keyakinan ${(top.probability * 100).toFixed(1)}%.`;
+}
+</script>
+</body>
+</html>

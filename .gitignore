@@ -1,0 +1,21 @@
+# data
+data/raw/
+*.jpg
+*.jpeg
+*.png
+!app/static/**
+
+# models (large binary files - track via Git LFS or exclude from repo, mention in README)
+models/*.keras
+models/*.h5
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# os
+.DS_Store
+Thumbs.db
